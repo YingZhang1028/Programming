@@ -1,0 +1,122 @@
+---
+title: "Hotel Success Formula"
+author: "Justin Saunders, Linhui Fu, Zezhi Zhou, Youdan Shi, Ying Zhang"
+date: "November 20, 2016"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+First we read in the data set that was compiled from Python. It contains a record for every hotel, with the hotel's name, # of reviews, # of stars, average rating, room price, and location as column headers.
+
+```{r echo=TRUE}
+# LOAD DATA
+hotelData <- read.csv(file = "hotels_final.csv", header = TRUE)
+head(hotelData)
+summary(hotelData)
+```
+
+############################ QUESTIONS ###############################
+
+- Why do many hotel names appear multiple times with duplicate data (i.e. 16 identical records for Hotel Hugo)??
+- R sees "star" as continuous. Is this a problem? Can we force it to be discrete (ordinal)?
+
+############################ QUESTIONS ###############################
+
+Observations about the above data:
+- # of stars span from 1 to 5
+- # of reviews spans from 3 to 9904
+- Average rating spans from 4.7 to 9.8. Shortly, we will center this data about the mean to get more resolution
+- Price spans from $109 to $1275 per room
+
+
+Next we perform some simple linear regression and print summary reports for the continuous variables, # of reviews and room price.
+
+```{r}
+# REGRESSION AND SUMMARIES
+review.slr <- lm(rating~review, data=hotelData)  
+summary(review.slr)
+plot(rating~review, data=hotelData, main = "Ratings vs. # of Reviews")
+
+price.slr <- lm(rating~price, data=hotelData)
+summary(price.slr)
+plot(rating~price, data=hotelData, main = "Ratings vs. Room Price")
+```
+
+Observations about the above data:
+
+- Ratings vs. Reviews: It seems that this data is non-normal and not a large contributor for average ratings (low R-squared).
+- Ratings vs. Room Price: Price and Ratings seem to have a positive correlation. An R-squared of .2156 isn't bad, but the graph seems to approach an upper limit. Let's try plotting Price on a logarithmic scale
+
+
+```{r}
+logprice = log(hotelData$price)
+plot(rating~logprice, data=hotelData, main = "Ratings vs. Log(Room Price)")
+logprice.slr <- lm(rating~logprice, data=hotelData)
+summary(logprice.slr)
+## predict(logprice.slr, logprice = 7,interval = "predict") - Why not work??
+
+```
+
+Log(price) proved to be a better fit: R-squared = .3192. 
+
+
+Next we perform an analysis of variance (ANOVA) and print summary reports for the discrete variables, # of Stars and Location.
+
+```{r}
+# ANOVA AND SUMMARIES
+star.anova <- lm(rating~star, data=hotelData) # ANOVA model: ratings vs. # of stars
+summary(star.anova)
+
+location.anova <- lm(rating~address, data=hotelData) # ANOVA model: ratings vs. location
+summary(location.anova)
+
+brand.anova <- lm(rating~brand_affiliation, data=hotelData) # ANOVA model: ratings vs. location
+summary(brand.anova)
+plotmeans(rating~brand_affiliation, data=hotelData, main = "Rating by Brand")
+
+library(gplots)
+plotmeans(rating~address, data=hotelData, main = "Rating by Location (Means)")
+boxplot(rating~address, data=hotelData, main = "Rating by Location (Means)")
+
+
+```
+
+Observations about the above data:
+- # of Stars shows a positive association with Ratings. The relatively high R-squared implies that this variable contriutes over 30% of the variation in Ratings.
+- Location also has a relatively high R-squared, but many of the individual p-values imply that each location does not have a significant difference from the sample average. Only "Upper West Side" appears to be significantly lower than the average. 
+
+Hotel Hillary wants to know if it is worthwhile to invest the capital that would likely lead to a 5 star rating. Let's find out by performing a sample T test.
+
+
+```{r}
+# SAMPLE T TEST: 4 vs. 5 STARS
+fourFiveStars <- subset(hotelData, star == 4 | star == 5)
+library(lsr)
+independentSamplesTTest(rating~star, data=fourFiveStars, var.equal = TRUE)
+plotmeans(rating~star, data=fourFiveStars, main = "Rating vs # of Stars")
+
+```
+From the above we can see that the two means differ by about .3 ratings points. From the low p-value, we can see that this difference is significant. Nonetheless, Hotel Hillary will have to decide if that cost is worth .3 rating points.
+
+
+Now, let's pull all of the variables together into an ANACOVA chart to find out what the whole story tells us.
+
+```{r}
+library(heplots)
+
+total.anacova <- lm(rating~price + star + address + review + brand_affiliation, data=hotelData)
+summary(total.anacova)
+etasq(total.anacova)
+
+```
+
+First looking at the Eta Squared for our model, we can clearly see that Location is the dominant factor when it comes to predicting Customer Ratings, followed by Brand Affiliation, Number of Reviews, Number of Stars, and finally Room Price at the very end.
+
+Looking at the ANACOVA table we can see that about 50% of the variation in Customer Ratings can be predicted by the variables we selected. 
+
+
+```
+
